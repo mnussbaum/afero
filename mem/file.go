@@ -99,6 +99,10 @@ func GetFileInfo(f *FileData) *FileInfo {
 	return &FileInfo{f}
 }
 
+func GetDirFiles(f *FileData) []*FileData {
+	return f.memDir.Files()
+}
+
 func (f *File) Open() error {
 	atomic.StoreInt64(&f.at, 0)
 	atomic.StoreInt64(&f.readDirCount, 0)
