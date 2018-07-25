@@ -57,6 +57,53 @@ func (m *MemMapFs) Create(name string) (File, error) {
 	return mem.NewFileHandle(file), nil
 }
 
+func (m *MemMapFs) unRegisterChildren(dirName string) ([]*mem.FileData, error) {
+	dir, err := m.lockfreeOpen(dirName)
+	if err != nil {
+		return nil, err
+	}
+
+	children := mem.GetDirFiles(dir)
+	for _, file := range children {
+		fileName := file.Name()
+		file.Lock()
+		delete(m.getData(), fileName)
+		mem.RemoveFromMemDir(dir, file)
+		file.Unlock()
+	}
+
+	return children, nil
+}
+
+func (m *MemMapFs) registerChildren(
+	oldDirName string,
+	newDirName string,
+	children []*mem.FileData,
+) error {
+	dir, err := m.lockfreeOpen(newDirName)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range children {
+		oldFileName := file.Name()
+		newFileName := strings.Replace(
+			oldFileName,
+			oldDirName,
+			newDirName,
+			1,
+		)
+		mem.ChangeFileName(file, newFileName)
+
+		file.Lock()
+		m.getData()[newFileName] = file
+		mem.AddToMemDir(dir, file)
+		file.Unlock()
+	}
+
+	return nil
+}
+
 func (m *MemMapFs) unRegisterWithParent(fileName string) error {
 	f, err := m.lockfreeOpen(fileName)
 	if err != nil {
@@ -296,9 +343,11 @@ func (m *MemMapFs) Rename(oldname, newname string) error {
 		m.mu.Lock()
 		m.unRegisterWithParent(oldname)
 		fileData := m.getData()[oldname]
+		children, _ := m.unRegisterChildren(oldname)
 		delete(m.getData(), oldname)
 		mem.ChangeFileName(fileData, newname)
 		m.getData()[newname] = fileData
+		m.registerChildren(oldname, newname, children)
 		m.registerWithParent(fileData)
 		m.mu.Unlock()
 		m.mu.RLock()

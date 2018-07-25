@@ -247,6 +247,31 @@ func TestRename(t *testing.T) {
 	}
 }
 
+func TestRenameDirectory(t *testing.T) {
+	fs := NewMemMapFs()
+	tmp := testDir(fs)
+	srcDir := filepath.Join(tmp, "src")
+	srcPath := filepath.Join(srcDir, testName)
+	destDir := filepath.Join(tmp, "dest")
+	destPath := filepath.Join(destDir, testName)
+
+	if _, err := fs.Create(srcPath); err != nil {
+		t.Errorf("%s: create %q failed: %v", fs.Name(), srcPath, err)
+	}
+
+	if err := fs.Rename(srcDir, destDir); err != nil {
+		t.Errorf("%s: rename %q to %q failed: %v", fs.Name(), srcDir, destDir, err)
+	}
+
+	if _, err := fs.Stat(srcPath); err == nil {
+		t.Errorf("File %q was not removed due to rename to %q", srcPath, destPath)
+	}
+
+	if _, err := fs.Stat(destPath); err != nil {
+		t.Errorf("File %q was not present after rename from %q", destPath, srcPath)
+	}
+}
+
 func TestRemove(t *testing.T) {
 	for _, fs := range Fss {
 
